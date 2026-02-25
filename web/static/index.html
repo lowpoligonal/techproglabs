@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Список продуктов</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Продукты</h1>
+    
+    <form id="addForm">
+        <input type="text" id="name" placeholder="Название" required>
+        <input type="number" id="count" placeholder="Количество" required>
+        <input type="date" id="date" required>
+        <button type="submit">Добавить</button>
+    </form>
+
+    <table id="productTable">
+        <thead>
+            <tr>
+                <th>Название</th>
+                <th>Количество</th>
+                <th>Дата</th>
+                <th>Действие</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
