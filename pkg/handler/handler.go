@@ -3,6 +3,7 @@ package handler
 import (
 	"labs/pkg/models"
 	"labs/pkg/worker"
+	"log"
 	"net/http"
 	"time"
 
@@ -23,21 +24,36 @@ func GetProducts(c *gin.Context) {
 
 func AddProduct(c *gin.Context) {
 	var input struct {
-		Name  string `json:"name" binding:"required"`
-		Count int    `json:"count" binding:"required"`
-		Date  string `json:"date" binding:"required"`
+		Name     string `json:"name"`
+		Category string `json:"category"`
+		Count    int    `json:"count"`
+		Date     string `json:"date"`
 	}
+
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	date, _ := time.Parse("2006-01-02", input.Date)
+	if input.Count < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Количество не может быть отрицательным"})
+		return
+	}
 
-	newProd := models.NewProduct(input.Name, input.Count, date)
+	date, err := time.Parse("2006-01-02", input.Date)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Неверный формат даты"})
+		return
+	}
+
+	newProd := models.NewProduct(input.Name, input.Category, input.Count, date)
 	prodList = append(prodList, newProd)
 
-	worker.WriteFile(filePath, worker.CreateProductString(prodList))
+	if err := worker.WriteFile(filePath, worker.CreateProductString(prodList)); err != nil {
+		log.Printf("Ошибка записи файла: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сохранить данные"})
+		return
+	}
 
 	c.JSON(http.StatusCreated, newProd)
 }
@@ -59,7 +75,11 @@ func DeleteProduct(c *gin.Context) {
 
 	prodList = append(prodList[:index], prodList[index+1:]...)
 
-	worker.WriteFile(filePath, worker.CreateProductString(prodList))
+	if err := worker.WriteFile(filePath, worker.CreateProductString(prodList)); err != nil {
+		log.Printf("Ошибка записи файла: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сохранить данные"})
+		return
+	}
 
 	c.Status(http.StatusNoContent)
 }

@@ -9,6 +9,7 @@ import (
 
 func StartServer() {
 	handler.Init()
+	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.Default()
 
@@ -25,7 +26,7 @@ func StartServer() {
 		api.DELETE("/products/:id", handler.DeleteProduct)
 	}
 
-	if err := router.Run(":8080"); err != nil {
+	if err := router.Run(":8088"); err != nil {
 		log.Fatal("Server failed:", err)
 	}
 }

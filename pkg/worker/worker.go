@@ -1,18 +1,17 @@
 package worker
 
 import (
-	"fmt"
 	"io"
 	"labs/pkg/models"
+	"log"
 	"os"
 	"strings"
 )
 
-func ReadFile(path string) string {
+func ReadFile(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return "", err
 	}
 	defer file.Close()
 
@@ -21,33 +20,41 @@ func ReadFile(path string) string {
 
 	for {
 		n, err := file.Read(data)
-		if err == io.EOF {
-			break
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return "", err
 		}
 		fileData += string(data[:n])
 	}
-	return fileData
+	return fileData, nil
 }
 
-func WriteFile(path, data string) {
-	file, err := os.Create(path)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	defer file.Close()
-
-	file.WriteString(data)
+func WriteFile(path, data string) error {
+	return os.WriteFile(path, []byte(data), 0644)
 }
 
 func CreateProductList(filePath string) []models.Product {
-	data := ReadFile(filePath)
+	data, err := ReadFile(filePath)
+	if err != nil {
+		log.Printf("Ошибка чтения файла %s: %v", filePath, err)
+		return nil
+	}
+
 	lines := strings.Split(data, "\n")
-	var list []models.Product
+
+	list := make([]models.Product, 0)
+
+	if len(lines) == 0 {
+		return list
+	}
 
 	for _, line := range lines {
 		p, err := models.ProductFromString(line)
 		if err != nil {
+			log.Printf("Ошибка: %v", err)
+			continue
 		}
 		list = append(list, p)
 	}
