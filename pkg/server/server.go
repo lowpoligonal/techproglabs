@@ -24,6 +24,12 @@ func StartServer() {
 		api.GET("/products", handler.GetProducts)
 		api.POST("/products", handler.AddProduct)
 		api.DELETE("/products/:id", handler.DeleteProduct)
+
+		api.GET("/commands", handler.GetCommands)
+		api.POST("/commands", handler.AddCommand)
+		//api.DELETE("/commands/:id", handler.DeleteCommand)
+
+		api.POST("/commands/execute-all", handler.ExecuteAllCommands)
 	}
 
 	if err := router.Run(":8088"); err != nil {

@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"errors"
+	"fmt"
+	"labs/pkg/command"
 	"labs/pkg/models"
 	"labs/pkg/worker"
 	"log"
@@ -10,12 +13,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const filePath = "D:/ucheba/techproglabs/input.txt"
+var (
+	prodList []models.Product
+	FilePath string
 
-var prodList []models.Product
+	commandList     []command.Command
+	CommandFilePath string
+)
 
 func Init() {
-	prodList = worker.CreateProductList(filePath)
+	prodList = worker.CreateProductList(FilePath)
+	commandList = command.LoadCommandsFromFile(CommandFilePath)
 }
 
 func GetProducts(c *gin.Context) {
@@ -49,7 +57,7 @@ func AddProduct(c *gin.Context) {
 	newProd := models.NewProduct(input.Name, input.Category, input.Count, date)
 	prodList = append(prodList, newProd)
 
-	if err := worker.WriteFile(filePath, worker.CreateProductString(prodList)); err != nil {
+	if err := worker.WriteFile(FilePath, worker.CreateProductString(prodList)); err != nil {
 		log.Printf("Ошибка записи файла: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сохранить данные"})
 		return
@@ -75,11 +83,80 @@ func DeleteProduct(c *gin.Context) {
 
 	prodList = append(prodList[:index], prodList[index+1:]...)
 
-	if err := worker.WriteFile(filePath, worker.CreateProductString(prodList)); err != nil {
+	if err := worker.WriteFile(FilePath, worker.CreateProductString(prodList)); err != nil {
 		log.Printf("Ошибка записи файла: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сохранить данные"})
 		return
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+func GetCommands(c *gin.Context) {
+	c.JSON(http.StatusOK, commandList)
+}
+
+func AddCommand(c *gin.Context) {
+	var input struct {
+		Command string `json:"command"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cmd, err := command.ParseCommand(input.Command)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	commandList = append(commandList, cmd)
+
+	switch cmd.CommType {
+	case "ADD":
+		err = command.ExecuteAdd(cmd.Args, &prodList, FilePath)
+	case "DEL":
+		err = command.ExecuteDel(cmd.Args, &prodList, FilePath)
+	case "SAVE":
+		err = command.ExecuteSave(cmd.Args, &prodList)
+	default:
+		err = errors.New("неподдерживаемая команда")
+	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := command.SaveCommandsToFile(CommandFilePath, commandList); err != nil {
+		log.Printf("Ошибка записи файла: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не удалось сохранить данные"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, cmd)
+}
+
+func ExecuteAllCommands(c *gin.Context) {
+	commands := make([]command.Command, len(commandList))
+	copy(commands, commandList)
+
+	for _, rec := range commands {
+		var err error
+		switch rec.CommType {
+		case "ADD":
+			err = command.ExecuteAdd(rec.Args, &prodList, FilePath)
+		case "DEL":
+			err = command.ExecuteDel(rec.Args, &prodList, FilePath)
+		case "SAVE":
+			err = command.ExecuteSave(rec.Args, &prodList)
+		default:
+			err = errors.New("неподдерживаемая команда")
+		}
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("ошибка выполнения команды %q: %v", rec.Args, err)})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, prodList)
 }
